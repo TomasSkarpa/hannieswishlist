@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getLinkPreview } from 'link-preview-js';
 
 // Fallback function to extract basic metadata from HTML
-async function extractBasicMetadata(url: string): Promise<{ title?: string; description?: string; siteName?: string }> {
+async function extractBasicMetadata(url: string): Promise<{ title?: string; description?: string; siteName?: string; image?: string; images?: string[] }> {
   try {
     const response = await fetch(url, {
       headers: {
@@ -36,20 +36,26 @@ async function extractBasicMetadata(url: string): Promise<{ title?: string; desc
     if (blockedIndicators.some(indicator => htmlLower.includes(indicator))) {
       return {};
     }
-    const result: { title?: string; description?: string; siteName?: string } = {};
+    const result: { title?: string; description?: string; siteName?: string; image?: string; images?: string[] } = {};
 
-    // Extract title from <title> tag
-    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    if (titleMatch && titleMatch[1]) {
-      result.title = titleMatch[1].trim();
+    // Extract title - try og:title first, then <title> tag
+    const ogTitleMatch = html.match(/<meta\s+property=["']og:title["']\s+content=["']([^"']+)["']/i) ||
+                            html.match(/<meta\s+content=["']([^"']+)["']\s+property=["']og:title["']/i);
+    if (ogTitleMatch && ogTitleMatch[1]) {
+      result.title = ogTitleMatch[1].trim();
+    } else {
+      const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+      if (titleMatch && titleMatch[1]) {
+        result.title = titleMatch[1].trim();
+      }
     }
 
     // Extract description from meta tags (try multiple variations)
     const descPatterns = [
-      /<meta\s+name=["']description["']\s+content=["']([^"']+)["']/i,
       /<meta\s+property=["']og:description["']\s+content=["']([^"']+)["']/i,
-      /<meta\s+content=["']([^"']+)["']\s+name=["']description["']/i,
       /<meta\s+content=["']([^"']+)["']\s+property=["']og:description["']/i,
+      /<meta\s+name=["']description["']\s+content=["']([^"']+)["']/i,
+      /<meta\s+content=["']([^"']+)["']\s+name=["']description["']/i,
     ];
 
     for (const pattern of descPatterns) {
@@ -60,8 +66,32 @@ async function extractBasicMetadata(url: string): Promise<{ title?: string; desc
       }
     }
 
+    // Extract images - try og:image first
+    const imagePatterns = [
+      /<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i,
+      /<meta\s+content=["']([^"']+)["']\s+property=["']og:image["']/i,
+      /<meta\s+name=["']image["']\s+content=["']([^"']+)["']/i,
+    ];
+    
+    const images: string[] = [];
+    for (const pattern of imagePatterns) {
+      const imageMatch = html.match(pattern);
+      if (imageMatch && imageMatch[1]) {
+        const imageUrl = imageMatch[1].trim();
+        if (imageUrl && !images.includes(imageUrl)) {
+          images.push(imageUrl);
+        }
+      }
+    }
+    
+    if (images.length > 0) {
+      result.image = images[0];
+      result.images = images;
+    }
+
     // Extract site name from og:site_name
-    const siteNameMatch = html.match(/<meta\s+property=["']og:site_name["']\s+content=["']([^"']+)["']/i);
+    const siteNameMatch = html.match(/<meta\s+property=["']og:site_name["']\s+content=["']([^"']+)["']/i) ||
+                           html.match(/<meta\s+content=["']([^"']+)["']\s+property=["']og:site_name["']/i);
     if (siteNameMatch && siteNameMatch[1]) {
       result.siteName = siteNameMatch[1].trim();
     }
@@ -106,14 +136,35 @@ export async function POST(request: NextRequest) {
         },
         timeout: 10000, // 10 second timeout
       });
+      
+      // Check if link-preview-js returned useful data
+      // If it only returned a domain name or empty data, try fallback
+      const hasUsefulData = preview.title && 
+                           preview.title.trim().length > 0 &&
+                           preview.title.toLowerCase() !== url.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].toLowerCase();
+      
+      if (!hasUsefulData && (!preview.description || preview.description.trim().length === 0)) {
+        console.warn('link-preview-js returned minimal data, trying fallback');
+        // link-preview-js didn't return useful data, try fallback
+        const basicMeta = await extractBasicMetadata(url);
+        if (basicMeta.title && basicMeta.title.trim().length > 0 && 
+            basicMeta.title.toLowerCase() !== url.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].toLowerCase()) {
+          // Fallback has better data, use it
+          preview = { ...preview, ...basicMeta };
+          usedFallback = true;
+          console.log('Fallback extracted better data:', { title: preview.title, hasDescription: !!preview.description, hasImage: !!preview.image });
+        }
+      }
     } catch (error) {
-      console.warn('link-preview-js failed, trying fallback:', error);
-      // If link-preview-js fails, try basic HTML parsing
+      console.warn('link-preview-js failed with error, trying fallback:', error);
+      // If link-preview-js throws an error, try basic HTML parsing
       const basicMeta = await extractBasicMetadata(url);
-      if (basicMeta.title || basicMeta.description) {
+      if (basicMeta.title || basicMeta.description || basicMeta.image) {
         preview = basicMeta;
         usedFallback = true;
+        console.log('Fallback extracted:', { title: preview.title, hasDescription: !!preview.description, hasImage: !!preview.image });
       } else {
+        console.warn('Fallback also failed, using domain name');
         // If both fail, still try to get domain name
         try {
           const urlObj = new URL(url);
@@ -141,7 +192,9 @@ export async function POST(request: NextRequest) {
       '401',
     ];
     
-    const isUnhelpful = unhelpfulTitles.some(bad => title.includes(bad)) || title.length < 3;
+    // Only mark as unhelpful if title is actually blocked, not if it's just short
+    // Short titles like "zalando.cz" are valid domain names, not errors
+    const isUnhelpful = unhelpfulTitles.some(bad => title.includes(bad));
 
     // If we got blocked/unhelpful content, try to use domain name instead
     if (isUnhelpful && preview.title) {
@@ -155,7 +208,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Ensure we always have at least a domain name
+    // Only set domain as title if we truly have no title
+    // Don't overwrite if we have a valid title from the preview
     if (!preview.title && !preview.siteName) {
       try {
         const urlObj = new URL(url);
@@ -164,6 +218,14 @@ export async function POST(request: NextRequest) {
         preview.siteName = domain;
       } catch {
         preview.title = 'Untitled';
+      }
+    } else if (!preview.siteName && preview.title) {
+      // If we have a title but no siteName, try to extract from domain
+      try {
+        const urlObj = new URL(url);
+        preview.siteName = urlObj.hostname.replace(/^www\./, '');
+      } catch {
+        // Ignore
       }
     }
 
