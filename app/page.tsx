@@ -167,6 +167,15 @@ export default function Home() {
     return <LoginForm />
   }
 
+  const getDomainFromUrl = (urlString: string): string => {
+    try {
+      const url = new URL(urlString)
+      return url.hostname.replace(/^www\./, '')
+    } catch {
+      return urlString
+    }
+  }
+
   const handleAddItem = async (url: string, category: string) => {
     setIsLoading(true)
     try {
@@ -178,19 +187,25 @@ export default function Home() {
         body: JSON.stringify({ url }),
       })
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch preview")
+      let preview: any = {}
+      if (response.ok) {
+        preview = await response.json()
+      } else {
+        // If preview fails, still add the item with URL-based fallback
+        console.warn("Preview fetch failed, using URL fallback")
       }
 
-      const preview = await response.json()
+      // Generate a better fallback title from the URL
+      const fallbackTitle = getDomainFromUrl(url)
+      const title = preview.title?.trim() || preview.siteName?.trim() || fallbackTitle
 
       const newItem: WishlistItem = {
         id: Date.now().toString(),
         url,
-        title: preview.title || "Untitled",
+        title,
         description: preview.description,
         image: preview.images?.[0] || preview.image,
-        siteName: preview.siteName,
+        siteName: preview.siteName || getDomainFromUrl(url),
         category: category === "Uncategorized" ? undefined : category,
         received: false,
         createdAt: Date.now(),
@@ -207,7 +222,28 @@ export default function Home() {
       })
     } catch (error) {
       console.error("Error adding item:", error)
-      alert("Failed to add item. Please check the URL and try again.")
+      // Even on error, add the item with URL-based title
+      const fallbackTitle = getDomainFromUrl(url)
+      const newItem: WishlistItem = {
+        id: Date.now().toString(),
+        url,
+        title: fallbackTitle,
+        description: undefined,
+        image: undefined,
+        siteName: fallbackTitle,
+        category: category === "Uncategorized" ? undefined : category,
+        received: false,
+        createdAt: Date.now(),
+      }
+      setItems((prev) => [newItem, ...prev])
+      
+      // Still celebrate!
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#ffb6c1', '#f3e8ff', '#ffb6c1'],
+      })
     } finally {
       setIsLoading(false)
     }
@@ -432,9 +468,13 @@ export default function Home() {
               />
             </div>
             <div>
-              <h2 className="text-xl font-semibold">Your wishlist is empty</h2>
+              <h2 className="text-xl font-semibold">
+                {filterCategory ? `This category is empty` : "Your wishlist is empty"}
+              </h2>
               <p className="mt-2 text-muted-foreground">
-                Paste a URL above to start adding items to your wishlist!
+                {filterCategory 
+                  ? `No items found in "${filterCategory}". Try selecting a different category or add items to this category.`
+                  : "Paste a URL above to start adding items to your wishlist!"}
               </p>
             </div>
           </div>
