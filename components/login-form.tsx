@@ -39,6 +39,7 @@ export function LoginForm() {
               src="/assets/images/kitty.png"
               alt="Cute kitty"
               fill
+              sizes="80px"
               className="object-contain"
             />
           </div>

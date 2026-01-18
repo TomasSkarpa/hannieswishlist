@@ -6,7 +6,6 @@ import Image from "next/image"
 import { UrlInput } from "@/components/url-input"
 import { WishlistItemList } from "@/components/wishlist-item-list"
 import { type WishlistItem } from "@/components/wishlist-item-card"
-import { Confetti, type ConfettiRef } from "@/components/ui/confetti"
 import { LoginForm } from "@/components/login-form"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
@@ -16,17 +15,16 @@ import { cn } from "@/lib/utils"
 
 export default function Home() {
   const { isAuthenticated, logout } = useAuth()
-
-  if (!isAuthenticated) {
-    return <LoginForm />
-  }
   const [items, setItems] = useState<WishlistItem[]>([])
   const [categories, setCategories] = useState<string[]>(["Uncategorized"])
   const [isLoading, setIsLoading] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
-  const confettiRef = useRef<ConfettiRef>(null)
   const itemsSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const categoriesSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  if (!isAuthenticated) {
+    return <LoginForm />
+  }
 
   // Load items and categories from localStorage and sync with Redis on mount
   useEffect(() => {
@@ -254,23 +252,6 @@ export default function Home() {
 
   return (
     <div className="relative flex min-h-screen flex-col items-center overflow-hidden bg-background">
-      {/* Decorative Background Photo */}
-      <div className="pointer-events-none fixed inset-0 z-0 opacity-5 dark:opacity-10">
-        <div className="relative h-full w-full">
-          <Image
-            src="/assets/images/photo.png"
-            alt=""
-            fill
-            className="object-cover"
-            priority
-            quality={30}
-          />
-        </div>
-      </div>
-
-      {/* Confetti */}
-      <Confetti ref={confettiRef} manualstart />
-
       {/* Main Content */}
       <main className="relative z-10 flex w-full max-w-6xl flex-col gap-8 px-4 py-12 sm:px-6 lg:px-8">
         {/* Logout Button */}
@@ -295,6 +276,7 @@ export default function Home() {
               src="/assets/images/kitty.png"
               alt="Cute kitty"
               fill
+              sizes="80px"
               className="object-contain drop-shadow-lg"
               priority
             />
@@ -329,6 +311,7 @@ export default function Home() {
                 src="/assets/images/kitty.png"
                 alt="Cute kitty"
                 fill
+                sizes="96px"
                 className="object-contain opacity-50"
               />
             </div>
