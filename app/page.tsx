@@ -28,7 +28,7 @@ export default function Home() {
   const itemsSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const categoriesSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Load items and categories from localStorage and sync with KV on mount
+  // Load items and categories from localStorage and sync with Redis on mount
   useEffect(() => {
     const loadData = async () => {
       // Load from localStorage first (fast)
@@ -58,10 +58,10 @@ export default function Home() {
       setItems(localItems)
       setCategories(localCategories)
 
-      // Sync with KV in the background
+      // Sync with Redis in the background
       setIsSyncing(true)
       try {
-        // Load from KV
+        // Load from Redis
         const [kvItemsResponse, kvCategoriesResponse] = await Promise.all([
           fetch('/api/wishlist/items').catch(() => null),
           fetch('/api/wishlist/categories').catch(() => null),
@@ -74,7 +74,7 @@ export default function Home() {
           ? (await kvCategoriesResponse.json()).categories || ["Uncategorized"]
           : ["Uncategorized"]
 
-        // Merge: prefer local if exists, otherwise use KV
+        // Merge: prefer local if exists, otherwise use Redis
         const mergedItems = localItems.length > 0 ? localItems : kvItems
         const mergedCategories = localCategories.length > 1 ? localCategories : kvCategories
 
@@ -86,7 +86,7 @@ export default function Home() {
         localStorage.setItem("wishlist-items", JSON.stringify(mergedItems))
         localStorage.setItem("wishlist-categories", JSON.stringify(mergedCategories))
 
-        // Sync merged data to KV
+        // Sync merged data to Redis
         if (mergedItems.length > 0) {
           await syncItemsToKV(mergedItems)
         }
@@ -94,7 +94,7 @@ export default function Home() {
           await syncCategoriesToKV(mergedCategories)
         }
       } catch (error) {
-        console.error("Error syncing with KV:", error)
+        console.error("Error syncing with Redis:", error)
       } finally {
         setIsSyncing(false)
       }
@@ -103,7 +103,7 @@ export default function Home() {
     loadData()
   }, [])
 
-  // Debounced sync to KV whenever items change
+  // Debounced sync to Redis whenever items change
   useEffect(() => {
     // Save to localStorage immediately
     localStorage.setItem("wishlist-items", JSON.stringify(items))
@@ -113,7 +113,7 @@ export default function Home() {
       clearTimeout(itemsSyncTimeoutRef.current)
     }
 
-    // Debounce KV sync (wait 1 second after last change)
+    // Debounce Redis sync (wait 1 second after last change)
     itemsSyncTimeoutRef.current = setTimeout(() => {
       syncItemsToKV(items).catch(console.error)
     }, 1000)
@@ -125,7 +125,7 @@ export default function Home() {
     }
   }, [items])
 
-  // Debounced sync to KV whenever categories change
+  // Debounced sync to Redis whenever categories change
   useEffect(() => {
     // Save to localStorage immediately
     localStorage.setItem("wishlist-categories", JSON.stringify(categories))
@@ -135,7 +135,7 @@ export default function Home() {
       clearTimeout(categoriesSyncTimeoutRef.current)
     }
 
-    // Debounce KV sync (wait 1 second after last change)
+    // Debounce Redis sync (wait 1 second after last change)
     categoriesSyncTimeoutRef.current = setTimeout(() => {
       syncCategoriesToKV(categories).catch(console.error)
     }, 1000)

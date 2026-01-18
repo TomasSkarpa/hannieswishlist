@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCategoriesFromKV, saveCategoriesToKV } from '@/lib/kv';
+import { getCategoriesFromRedis, saveCategoriesToRedis } from '@/lib/redis';
 
 export async function GET() {
   try {
-    const categories = await getCategoriesFromKV();
+    const categories = await getCategoriesFromRedis();
     return NextResponse.json({ categories });
   } catch (error) {
     console.error('Error fetching categories:', error);
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await saveCategoriesToKV(categories);
+    await saveCategoriesToRedis(categories);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error saving categories:', error);
