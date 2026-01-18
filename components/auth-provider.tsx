@@ -4,40 +4,61 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 
 interface AuthContextType {
   isAuthenticated: boolean
-  login: (username: string, password: string) => boolean
-  logout: () => void
+  login: (username: string, password: string) => Promise<boolean>
+  logout: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
-
-// Credentials - can be set via environment variables or use defaults
-// Set NEXT_PUBLIC_AUTH_USERNAME and NEXT_PUBLIC_AUTH_PASSWORD in .env.local
-const AUTH_USERNAME = process.env.NEXT_PUBLIC_AUTH_USERNAME
-const AUTH_PASSWORD = process.env.NEXT_PUBLIC_AUTH_PASSWORD
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Check if user is already authenticated
-    const authStatus = localStorage.getItem("wishlist-auth")
-    setIsAuthenticated(authStatus === "authenticated")
-    setIsLoading(false)
+    // Check authentication status from server
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/auth/check')
+        const data = await response.json()
+        setIsAuthenticated(data.authenticated || false)
+      } catch (error) {
+        console.error('Error checking auth:', error)
+        setIsAuthenticated(false)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    checkAuth()
   }, [])
 
-  const login = (username: string, password: string): boolean => {
-    if (username === AUTH_USERNAME && password === AUTH_PASSWORD) {
-      localStorage.setItem("wishlist-auth", "authenticated")
-      setIsAuthenticated(true)
-      return true
+  const login = async (username: string, password: string): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      })
+
+      if (response.ok) {
+        setIsAuthenticated(true)
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('Login error:', error)
+      return false
     }
-    return false
   }
 
-  const logout = () => {
-    localStorage.removeItem("wishlist-auth")
-    setIsAuthenticated(false)
+  const logout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+      setIsAuthenticated(false)
+    } catch (error) {
+      console.error('Logout error:', error)
+      setIsAuthenticated(false)
+    }
   }
 
   if (isLoading) {

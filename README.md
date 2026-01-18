@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🌸 Hannie's Wishlist 🌸
 
-## Getting Started
+A beautiful, dreamy wishlist app where you can save all your favorite things! ✨
 
-First, run the development server:
+Built with love, pink hearts, and sparkles ✨💕
+
+## 🌺 Getting Started
+
+Let's get this beautiful app blooming! 🌷
+
+First, install the dependencies:
+
+```bash
+npm install
+```
+
+Then, make it come to life:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser and watch the magic happen! ✨
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🌸 Features
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- 💕 **Cute Categories** - Organize your wishes however you like (Shoes, Electronics, Presents for my BF, etc.)
+- 🎁 **Beautiful Previews** - Just paste a URL and watch it transform into a gorgeous card
+- 💖 **Mark as Received** - Celebrate when you get your wishlist items!
+- 🌺 **Edit Everything** - Customize titles, descriptions, and images to make them perfect
+- ☁️ **Cloud Sync** - Your wishlist follows you everywhere (with Vercel KV)
+- 🔒 **Protected** - Keep your wishes safe with username/password
 
-## Learn More
+## 🌷 Tech Stack
 
-To learn more about Next.js, take a look at the following resources:
+- **Next.js** - The framework that makes it all bloom
+- **TypeScript** - For type-safe code
+- **Tailwind CSS** - For beautiful, pink styling
+- **Vercel KV** - For cloud storage and sync
+- **Lucide Icons** - Cute, soft icons throughout
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🌸 Setup
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Authentication
 
-## Deploy on Vercel
+Create a `.env.local` file with your credentials:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+NEXT_PUBLIC_AUTH_USERNAME=your_username
+NEXT_PUBLIC_AUTH_PASSWORD=your_password
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Cloud Storage (Optional but Recommended!)
+
+See `KV_SETUP.md` for instructions on setting up Vercel KV for cloud sync! ☁️✨
+
+## 🌺 Deploy
+
+Deploy your beautiful wishlist to [Vercel](https://vercel.com) and share it with the world! 🌸
+
+```bash
+npm run build
+```
+
+Then deploy to Vercel - it's as easy as a spring breeze! 🌷
+
+---
+
+Made with 💕 and lots of pink sparkles ✨

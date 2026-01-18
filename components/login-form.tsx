@@ -13,7 +13,7 @@ export function LoginForm() {
   const [error, setError] = useState("")
   const { login } = useAuth()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
 
@@ -22,7 +22,7 @@ export function LoginForm() {
       return
     }
 
-    const success = login(username.trim(), password.trim())
+    const success = await login(username.trim(), password.trim())
     if (!success) {
       setError("Invalid username or password")
       setPassword("")
