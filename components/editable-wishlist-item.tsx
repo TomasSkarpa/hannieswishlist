@@ -210,7 +210,13 @@ export function EditableWishlistItem({
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold line-clamp-1">{item.title}</h3>
                   {needsManualEdit && (
-                    <AlertCircle className="h-4 w-4 shrink-0 text-orange-500" title="Preview may be incomplete - click edit to fix" />
+                    <span 
+                      className="inline-flex"
+                      title="Preview may be incomplete - click edit to fix"
+                      aria-label="Preview may be incomplete - click edit to fix"
+                    >
+                      <AlertCircle className="h-4 w-4 shrink-0 text-orange-500" />
+                    </span>
                   )}
                 </div>
                 {item.siteName && (
