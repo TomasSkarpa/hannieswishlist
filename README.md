@@ -1,4 +1,4 @@
-# 🌸 Hannie's Wishlist 🌸
+![Generated Image January 18, 2026 - 9_54AM](https://github.com/user-attachments/assets/2035ab57-288a-4e12-9c6a-4f80a26190aa)
 
 A beautiful, dreamy wishlist app built for my gf where she can save all her favorite things! ✨
 
