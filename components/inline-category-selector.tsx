@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
+import * as LucideIcons from "lucide-react"
 import { Tag, ChevronDown, PlusCircle, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,6 +12,7 @@ interface InlineCategorySelectorProps {
   selectedCategory: string
   onSelect: (category: string) => void
   onCreateCategory: (category: string) => void
+  categoryIcons?: Record<string, string>
   className?: string
 }
 
@@ -19,6 +21,7 @@ export function InlineCategorySelector({
   selectedCategory,
   onSelect,
   onCreateCategory,
+  categoryIcons = {},
   className,
 }: InlineCategorySelectorProps) {
   const [isOpen, setIsOpen] = useState(false)
@@ -96,7 +99,11 @@ export function InlineCategorySelector({
         onClick={handleToggle}
         className="h-6 gap-1 px-2 text-xs"
       >
-        <Tag className="h-3 w-3" />
+        {(() => {
+          const iconName = categoryIcons[selectedCategory] || "Tag"
+          const Icon = (LucideIcons[iconName as keyof typeof LucideIcons] || Tag) as React.ComponentType<{ className?: string }>
+          return <Icon className="h-3 w-3" />
+        })()}
         <span className="max-w-[100px] truncate">{selectedCategory}</span>
         <ChevronDown className={cn("h-3 w-3 transition-transform", isOpen && "rotate-180")} />
       </Button>
@@ -109,22 +116,27 @@ export function InlineCategorySelector({
           )}
         >
           <div className="max-h-60 overflow-y-auto p-1">
-            {categories.map((category) => (
-              <button
-                key={category}
-                type="button"
-                onClick={() => {
-                  onSelect(category)
-                  setIsOpen(false)
-                }}
-                className={cn(
-                  "w-full rounded-sm px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent",
-                  selectedCategory === category && "bg-accent"
-                )}
-              >
-                {category}
-              </button>
-            ))}
+            {categories.map((category) => {
+              const iconName = categoryIcons[category] || "Tag"
+              const Icon = (LucideIcons[iconName as keyof typeof LucideIcons] || Tag) as React.ComponentType<{ className?: string }>
+              return (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() => {
+                    onSelect(category)
+                    setIsOpen(false)
+                  }}
+                  className={cn(
+                    "w-full rounded-sm px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent flex items-center gap-2",
+                    selectedCategory === category && "bg-accent"
+                  )}
+                >
+                  <Icon className="h-3 w-3" />
+                  {category}
+                </button>
+              )
+            })}
             
             {isCreating ? (
               <div className="p-1">

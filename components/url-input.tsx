@@ -4,7 +4,7 @@ import { useState } from "react"
 import { PlusCircle, Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { CategorySelector } from "@/components/category-selector"
+import { InlineCategorySelector } from "@/components/inline-category-selector"
 import { cn } from "@/lib/utils"
 
 interface UrlInputProps {
@@ -12,9 +12,10 @@ interface UrlInputProps {
   isLoading?: boolean
   categories: string[]
   onCreateCategory: (category: string) => void
+  categoryIcons?: Record<string, string>
 }
 
-export function UrlInput({ onAdd, isLoading, categories, onCreateCategory }: UrlInputProps) {
+export function UrlInput({ onAdd, isLoading, categories, onCreateCategory, categoryIcons = {} }: UrlInputProps) {
   const [url, setUrl] = useState("")
   const [selectedCategory, setSelectedCategory] = useState<string>("Uncategorized")
 
@@ -28,8 +29,8 @@ export function UrlInput({ onAdd, isLoading, categories, onCreateCategory }: Url
   }
 
   return (
-    <form onSubmit={handleSubmit} className="w-full space-y-4">
-      <div className="flex gap-2">
+    <form onSubmit={handleSubmit} className="w-full space-y-3">
+      <div className="flex gap-2 items-center">
         <Input
           type="url"
           placeholder="Paste a URL to add to your wishlist..."
@@ -38,6 +39,19 @@ export function UrlInput({ onAdd, isLoading, categories, onCreateCategory }: Url
           disabled={isLoading}
           className="flex-1"
         />
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-sm text-muted-foreground whitespace-nowrap">Category:</span>
+          <InlineCategorySelector
+            categories={categories}
+            selectedCategory={selectedCategory}
+            categoryIcons={categoryIcons}
+            onSelect={setSelectedCategory}
+            onCreateCategory={(category) => {
+              onCreateCategory(category)
+              setSelectedCategory(category)
+            }}
+          />
+        </div>
         <Button
           type="submit"
           disabled={!url.trim() || isLoading}
@@ -49,18 +63,6 @@ export function UrlInput({ onAdd, isLoading, categories, onCreateCategory }: Url
             <PlusCircle className="h-4 w-4" />
           )}
         </Button>
-      </div>
-      <div>
-        <p className="mb-2 text-sm text-muted-foreground">Category:</p>
-        <CategorySelector
-          categories={categories}
-          selectedCategory={selectedCategory}
-          onSelect={setSelectedCategory}
-          onCreateCategory={(category) => {
-            onCreateCategory(category)
-            setSelectedCategory(category)
-          }}
-        />
       </div>
     </form>
   )

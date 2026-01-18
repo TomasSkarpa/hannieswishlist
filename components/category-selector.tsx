@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { PlusCircle, X, Check } from "lucide-react"
+import * as LucideIcons from "lucide-react"
+import { PlusCircle, X, Check, Tag } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -11,6 +12,7 @@ interface CategorySelectorProps {
   selectedCategory: string
   onSelect: (category: string) => void
   onCreateCategory: (category: string) => void
+  categoryIcons?: Record<string, string>
   className?: string
 }
 
@@ -19,6 +21,7 @@ export function CategorySelector({
   selectedCategory,
   onSelect,
   onCreateCategory,
+  categoryIcons = {},
   className,
 }: CategorySelectorProps) {
   const [isCreating, setIsCreating] = useState(false)
@@ -55,6 +58,8 @@ export function CategorySelector({
     <div className={cn("flex flex-wrap gap-2", className)}>
       {categories.map((category) => {
         const isSelected = selectedCategory === category
+        const iconName = categoryIcons[category] || "Tag"
+        const Icon = (LucideIcons[iconName as keyof typeof LucideIcons] || Tag) as React.ComponentType<{ className?: string }>
         return (
           <Button
             key={category}
@@ -72,11 +77,24 @@ export function CategorySelector({
             )}
             aria-pressed={isSelected}
           >
+            <Icon className="h-3 w-3" />
             {isSelected && <Check className="h-3 w-3" />}
             {category}
           </Button>
         )
       })}
+      
+      {selectedCategory && selectedCategory !== "" && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => onSelect("")}
+          className="h-8 border-dashed"
+        >
+          Show All
+        </Button>
+      )}
       
       {isCreating ? (
         <div className="flex items-center gap-1">

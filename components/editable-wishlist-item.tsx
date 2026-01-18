@@ -12,6 +12,7 @@ import type { WishlistItem } from "./wishlist-item-card"
 interface EditableWishlistItemProps {
   item: WishlistItem
   categories: string[]
+  categoryIcons?: Record<string, string>
   onToggleReceived: (id: string) => void
   onDelete: (id: string) => void
   onChangeCategory: (id: string, category: string) => void
@@ -39,6 +40,7 @@ function isUnhelpfulContent(title?: string, description?: string): boolean {
 export function EditableWishlistItem({
   item,
   categories,
+  categoryIcons = {},
   onToggleReceived,
   onDelete,
   onChangeCategory,
@@ -275,6 +277,7 @@ export function EditableWishlistItem({
               <InlineCategorySelector
                 categories={categories}
                 selectedCategory={item.category || "Uncategorized"}
+                categoryIcons={categoryIcons}
                 onSelect={(category) => onChangeCategory(item.id, category)}
                 onCreateCategory={onCreateCategory}
               />

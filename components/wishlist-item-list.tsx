@@ -7,23 +7,31 @@ import type { WishlistItem } from "./wishlist-item-card"
 interface WishlistItemListProps {
   items: WishlistItem[]
   categories: string[]
+  categoryIcons?: Record<string, string>
   onToggleReceived: (id: string) => void
   onDelete: (id: string) => void
   onChangeCategory: (id: string, category: string) => void
   onCreateCategory: (category: string) => void
   onRenameCategory: (oldName: string, newName: string) => void
+  onCategoryIconChange?: (categoryName: string, icon: string) => void
+  onDeleteCategory?: (categoryName: string) => void
   onUpdateItem: (id: string, updates: Partial<WishlistItem>) => void
+  hideCategoryHeaders?: boolean
 }
 
 export function WishlistItemList({
   items,
   categories,
+  categoryIcons = {},
   onToggleReceived,
   onDelete,
   onChangeCategory,
   onCreateCategory,
   onRenameCategory,
+  onCategoryIconChange,
+  onDeleteCategory,
   onUpdateItem,
+  hideCategoryHeaders = false,
 }: WishlistItemListProps) {
   // Group items by category
   const groupedItems = items.reduce((acc, item) => {
@@ -55,11 +63,16 @@ export function WishlistItemList({
 
         return (
           <div key={category} className="group flex flex-col gap-4">
-            <EditableCategoryHeader
-              category={category}
-              count={{ received: receivedCount, total: totalCount }}
-              onRename={onRenameCategory}
-            />
+            {!hideCategoryHeaders && (
+              <EditableCategoryHeader
+                category={category}
+                categoryIcon={categoryIcons[category] || "Tag"}
+                count={{ received: receivedCount, total: totalCount }}
+                onRename={onRenameCategory}
+                onIconChange={onCategoryIconChange}
+                onDelete={onDeleteCategory}
+              />
+            )}
 
             <div className="flex flex-col gap-2">
               {categoryItems.map((item) => (
@@ -67,6 +80,7 @@ export function WishlistItemList({
                   key={item.id}
                   item={item}
                   categories={categories}
+                  categoryIcons={categoryIcons}
                   onToggleReceived={onToggleReceived}
                   onDelete={onDelete}
                   onChangeCategory={onChangeCategory}

@@ -9,6 +9,7 @@ import { type WishlistItem } from "@/components/wishlist-item-card"
 import { LoginForm } from "@/components/login-form"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
+import { CategorySelector } from "@/components/category-selector"
 import { syncItemsToKV, syncCategoriesToKV, mergeItems, mergeCategories } from "@/lib/sync"
 import confetti from "canvas-confetti"
 import { cn } from "@/lib/utils"
@@ -17,8 +18,10 @@ export default function Home() {
   const { isAuthenticated, logout } = useAuth()
   const [items, setItems] = useState<WishlistItem[]>([])
   const [categories, setCategories] = useState<string[]>(["Uncategorized"])
+  const [categoryIcons, setCategoryIcons] = useState<Record<string, string>>({})
   const [isLoading, setIsLoading] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
+  const [filterCategory, setFilterCategory] = useState<string | null>(null)
   const itemsSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const categoriesSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -30,9 +33,11 @@ export default function Home() {
       // Load from localStorage first (fast)
       const savedItems = localStorage.getItem("wishlist-items")
       const savedCategories = localStorage.getItem("wishlist-categories")
+      const savedCategoryIcons = localStorage.getItem("wishlist-category-icons")
       
       let localItems: WishlistItem[] = []
       let localCategories: string[] = ["Uncategorized"]
+      let localCategoryIcons: Record<string, string> = {}
       
       if (savedItems) {
         try {
@@ -50,9 +55,18 @@ export default function Home() {
         }
       }
 
+      if (savedCategoryIcons) {
+        try {
+          localCategoryIcons = JSON.parse(savedCategoryIcons)
+        } catch (error) {
+          console.error("Error loading category icons from localStorage:", error)
+        }
+      }
+
       // Set local data immediately
       setItems(localItems)
       setCategories(localCategories)
+      setCategoryIcons(localCategoryIcons)
 
       // Sync with Redis in the background
       setIsSyncing(true)
@@ -81,6 +95,7 @@ export default function Home() {
         // Save merged data back to localStorage
         localStorage.setItem("wishlist-items", JSON.stringify(mergedItems))
         localStorage.setItem("wishlist-categories", JSON.stringify(mergedCategories))
+        localStorage.setItem("wishlist-category-icons", JSON.stringify(localCategoryIcons))
 
         // Sync merged data to Redis
         if (mergedItems.length > 0) {
@@ -129,6 +144,7 @@ export default function Home() {
     
     // Save to localStorage immediately
     localStorage.setItem("wishlist-categories", JSON.stringify(categories))
+    localStorage.setItem("wishlist-category-icons", JSON.stringify(categoryIcons))
 
     // Clear existing timeout
     if (categoriesSyncTimeoutRef.current) {
@@ -145,7 +161,7 @@ export default function Home() {
         clearTimeout(categoriesSyncTimeoutRef.current)
       }
     }
-  }, [categories, isAuthenticated])
+  }, [categories, categoryIcons, isAuthenticated])
 
   if (!isAuthenticated) {
     return <LoginForm />
@@ -215,12 +231,72 @@ export default function Home() {
       return updated.sort()
     })
 
+    // Update icon mapping if category was renamed
+    setCategoryIcons((prev) => {
+      const newIcons = { ...prev }
+      if (prev[oldName]) {
+        newIcons[newName] = prev[oldName]
+        delete newIcons[oldName]
+      }
+      return newIcons
+    })
+
     // Update all items with the old category name to use the new name
     setItems((prev) =>
       prev.map((item) =>
         item.category === oldName ? { ...item, category: newName } : item
       )
     )
+  }
+
+  const handleCategoryIconChange = (categoryName: string, icon: string) => {
+    setCategoryIcons((prev) => ({
+      ...prev,
+      [categoryName]: icon,
+    }))
+  }
+
+  const handleDeleteCategory = (categoryName: string) => {
+    // Don't allow deleting "Uncategorized"
+    if (categoryName === "Uncategorized") {
+      return
+    }
+
+    // Count items in this category
+    const itemsInCategory = items.filter(
+      (item) => (item.category || "Uncategorized") === categoryName
+    )
+
+    // Confirm deletion
+    const message = itemsInCategory.length > 0
+      ? `Delete category "${categoryName}"? This will move ${itemsInCategory.length} item(s) to "Uncategorized".`
+      : `Delete category "${categoryName}"?`
+
+    if (!confirm(message)) {
+      return
+    }
+
+    // Move all items with this category to "Uncategorized" (set category to undefined)
+    setItems((prev) =>
+      prev.map((item) =>
+        item.category === categoryName ? { ...item, category: undefined } : item
+      )
+    )
+
+    // Remove category from categories list
+    setCategories((prev) => prev.filter((cat) => cat !== categoryName))
+
+    // Remove category icon
+    setCategoryIcons((prev) => {
+      const newIcons = { ...prev }
+      delete newIcons[categoryName]
+      return newIcons
+    })
+
+    // Clear filter if the deleted category was being filtered
+    if (filterCategory === categoryName) {
+      setFilterCategory(null)
+    }
   }
 
   const handleChangeCategory = (id: string, category: string) => {
@@ -253,8 +329,16 @@ export default function Home() {
     )
   }
 
-  const receivedCount = items.filter((item) => item.received).length
-  const totalCount = items.length
+  // Filter items based on selected category
+  const filteredItems = filterCategory
+    ? items.filter((item) => {
+        const itemCategory = item.category || "Uncategorized"
+        return itemCategory === filterCategory
+      })
+    : items
+
+  const receivedCount = filteredItems.filter((item) => item.received).length
+  const totalCount = filteredItems.length
 
   return (
     <div className="relative flex min-h-screen flex-col items-center overflow-hidden bg-background">
@@ -292,9 +376,11 @@ export default function Home() {
             <h1 className="text-4xl font-bold tracking-tight">Hannie&apos;s Wishlist</h1>
             <Sparkles className="h-6 w-6 text-primary" />
           </div>
-          {totalCount > 0 && (
+          {items.length > 0 && (
             <p className="text-muted-foreground">
-              {receivedCount} of {totalCount} items received
+              {filterCategory 
+                ? `${receivedCount} of ${totalCount} items in "${filterCategory}"`
+                : `${receivedCount} of ${items.length} items received`}
             </p>
           )}
         </div>
@@ -306,11 +392,35 @@ export default function Home() {
             isLoading={isLoading}
             categories={categories}
             onCreateCategory={handleCreateCategory}
+            categoryIcons={categoryIcons}
           />
         </div>
 
+        {/* Category Filter */}
+        {items.length > 0 && (
+          <div className="w-full">
+            <p className="mb-2 text-sm text-muted-foreground">
+              {filterCategory ? `Filtering by: ${filterCategory}` : "Filter by category:"}
+            </p>
+            <CategorySelector
+              categories={categories}
+              selectedCategory={filterCategory || ""}
+              categoryIcons={categoryIcons}
+              onSelect={(category) => {
+                // If clicking "Show All" (empty string) or the same category, clear filter
+                if (category === "" || filterCategory === category) {
+                  setFilterCategory(null)
+                } else {
+                  setFilterCategory(category)
+                }
+              }}
+              onCreateCategory={handleCreateCategory}
+            />
+          </div>
+        )}
+
         {/* Wishlist Items */}
-        {items.length === 0 ? (
+        {filteredItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-muted p-12 text-center">
             <div className="relative h-24 w-24">
               <Image
@@ -330,14 +440,18 @@ export default function Home() {
           </div>
         ) : (
           <WishlistItemList
-            items={items}
+            items={filteredItems}
             categories={categories}
+            categoryIcons={categoryIcons}
             onToggleReceived={handleToggleReceived}
             onDelete={handleDelete}
             onChangeCategory={handleChangeCategory}
             onCreateCategory={handleCreateCategory}
             onRenameCategory={handleRenameCategory}
+            onCategoryIconChange={handleCategoryIconChange}
+            onDeleteCategory={handleDeleteCategory}
             onUpdateItem={handleUpdateItem}
+            hideCategoryHeaders={filterCategory !== null}
           />
         )}
       </main>
