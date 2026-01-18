@@ -1,65 +1,357 @@
-import Image from "next/image";
+"use client"
+
+import { useState, useEffect, useRef, useMemo } from "react"
+import { Gift, Sparkles, LogOut } from "lucide-react"
+import Image from "next/image"
+import { UrlInput } from "@/components/url-input"
+import { WishlistItemList } from "@/components/wishlist-item-list"
+import { type WishlistItem } from "@/components/wishlist-item-card"
+import { Confetti, type ConfettiRef } from "@/components/ui/confetti"
+import { LoginForm } from "@/components/login-form"
+import { useAuth } from "@/components/auth-provider"
+import { Button } from "@/components/ui/button"
+import { syncItemsToKV, syncCategoriesToKV } from "@/lib/sync"
+import confetti from "canvas-confetti"
+import { cn } from "@/lib/utils"
 
 export default function Home() {
+  const { isAuthenticated, logout } = useAuth()
+
+  if (!isAuthenticated) {
+    return <LoginForm />
+  }
+  const [items, setItems] = useState<WishlistItem[]>([])
+  const [categories, setCategories] = useState<string[]>(["Uncategorized"])
+  const [isLoading, setIsLoading] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const confettiRef = useRef<ConfettiRef>(null)
+  const itemsSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const categoriesSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Load items and categories from localStorage and sync with KV on mount
+  useEffect(() => {
+    const loadData = async () => {
+      // Load from localStorage first (fast)
+      const savedItems = localStorage.getItem("wishlist-items")
+      const savedCategories = localStorage.getItem("wishlist-categories")
+      
+      let localItems: WishlistItem[] = []
+      let localCategories: string[] = ["Uncategorized"]
+      
+      if (savedItems) {
+        try {
+          localItems = JSON.parse(savedItems)
+        } catch (error) {
+          console.error("Error loading wishlist items from localStorage:", error)
+        }
+      }
+      
+      if (savedCategories) {
+        try {
+          localCategories = JSON.parse(savedCategories)
+        } catch (error) {
+          console.error("Error loading categories from localStorage:", error)
+        }
+      }
+
+      // Set local data immediately
+      setItems(localItems)
+      setCategories(localCategories)
+
+      // Sync with KV in the background
+      setIsSyncing(true)
+      try {
+        // Load from KV
+        const [kvItemsResponse, kvCategoriesResponse] = await Promise.all([
+          fetch('/api/wishlist/items').catch(() => null),
+          fetch('/api/wishlist/categories').catch(() => null),
+        ])
+
+        const kvItems = kvItemsResponse?.ok 
+          ? (await kvItemsResponse.json()).items || []
+          : []
+        const kvCategories = kvCategoriesResponse?.ok
+          ? (await kvCategoriesResponse.json()).categories || ["Uncategorized"]
+          : ["Uncategorized"]
+
+        // Merge: prefer local if exists, otherwise use KV
+        const mergedItems = localItems.length > 0 ? localItems : kvItems
+        const mergedCategories = localCategories.length > 1 ? localCategories : kvCategories
+
+        // Update state with merged data
+        setItems(mergedItems)
+        setCategories(mergedCategories)
+
+        // Save merged data back to localStorage
+        localStorage.setItem("wishlist-items", JSON.stringify(mergedItems))
+        localStorage.setItem("wishlist-categories", JSON.stringify(mergedCategories))
+
+        // Sync merged data to KV
+        if (mergedItems.length > 0) {
+          await syncItemsToKV(mergedItems)
+        }
+        if (mergedCategories.length > 0) {
+          await syncCategoriesToKV(mergedCategories)
+        }
+      } catch (error) {
+        console.error("Error syncing with KV:", error)
+      } finally {
+        setIsSyncing(false)
+      }
+    }
+
+    loadData()
+  }, [])
+
+  // Debounced sync to KV whenever items change
+  useEffect(() => {
+    // Save to localStorage immediately
+    localStorage.setItem("wishlist-items", JSON.stringify(items))
+
+    // Clear existing timeout
+    if (itemsSyncTimeoutRef.current) {
+      clearTimeout(itemsSyncTimeoutRef.current)
+    }
+
+    // Debounce KV sync (wait 1 second after last change)
+    itemsSyncTimeoutRef.current = setTimeout(() => {
+      syncItemsToKV(items).catch(console.error)
+    }, 1000)
+
+    return () => {
+      if (itemsSyncTimeoutRef.current) {
+        clearTimeout(itemsSyncTimeoutRef.current)
+      }
+    }
+  }, [items])
+
+  // Debounced sync to KV whenever categories change
+  useEffect(() => {
+    // Save to localStorage immediately
+    localStorage.setItem("wishlist-categories", JSON.stringify(categories))
+
+    // Clear existing timeout
+    if (categoriesSyncTimeoutRef.current) {
+      clearTimeout(categoriesSyncTimeoutRef.current)
+    }
+
+    // Debounce KV sync (wait 1 second after last change)
+    categoriesSyncTimeoutRef.current = setTimeout(() => {
+      syncCategoriesToKV(categories).catch(console.error)
+    }, 1000)
+
+    return () => {
+      if (categoriesSyncTimeoutRef.current) {
+        clearTimeout(categoriesSyncTimeoutRef.current)
+      }
+    }
+  }, [categories])
+
+  const handleAddItem = async (url: string, category: string) => {
+    setIsLoading(true)
+    try {
+      const response = await fetch("/api/preview", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ url }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch preview")
+      }
+
+      const preview = await response.json()
+
+      const newItem: WishlistItem = {
+        id: Date.now().toString(),
+        url,
+        title: preview.title || "Untitled",
+        description: preview.description,
+        image: preview.images?.[0] || preview.image,
+        siteName: preview.siteName,
+        category: category === "Uncategorized" ? undefined : category,
+        received: false,
+        createdAt: Date.now(),
+      }
+
+      setItems((prev) => [newItem, ...prev])
+      
+      // Fire confetti celebration!
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#ffb6c1', '#f3e8ff', '#ffb6c1'],
+      })
+    } catch (error) {
+      console.error("Error adding item:", error)
+      alert("Failed to add item. Please check the URL and try again.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleCreateCategory = (category: string) => {
+    if (!categories.includes(category)) {
+      setCategories((prev) => [...prev, category].sort())
+    }
+  }
+
+  const handleRenameCategory = (oldName: string, newName: string) => {
+    // Don't allow renaming "Uncategorized"
+    if (oldName === "Uncategorized" || newName === "Uncategorized") {
+      return
+    }
+
+    // Update category name in categories list
+    setCategories((prev) => {
+      const updated = prev.map((cat) => (cat === oldName ? newName : cat))
+      return updated.sort()
+    })
+
+    // Update all items with the old category name to use the new name
+    setItems((prev) =>
+      prev.map((item) =>
+        item.category === oldName ? { ...item, category: newName } : item
+      )
+    )
+  }
+
+  const handleChangeCategory = (id: string, category: string) => {
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? { ...item, category: category === "Uncategorized" ? undefined : category }
+          : item
+      )
+    )
+  }
+
+  const handleToggleReceived = (id: string) => {
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, received: !item.received } : item
+      )
+    )
+  }
+
+  const handleDelete = (id: string) => {
+    if (confirm("Are you sure you want to remove this item?")) {
+      setItems((prev) => prev.filter((item) => item.id !== id))
+    }
+  }
+
+  const handleUpdateItem = (id: string, updates: Partial<WishlistItem>) => {
+    setItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, ...updates } : item))
+    )
+  }
+
+  const receivedCount = items.filter((item) => item.received).length
+  const totalCount = items.length
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="relative flex min-h-screen flex-col items-center overflow-hidden bg-background">
+      {/* Decorative Background Photo */}
+      <div className="pointer-events-none fixed inset-0 z-0 opacity-5 dark:opacity-10">
+        <div className="relative h-full w-full">
+          <Image
+            src="/assets/images/photo.png"
+            alt=""
+            fill
+            className="object-cover"
+            priority
+            quality={30}
+          />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+      </div>
+
+      {/* Confetti */}
+      <Confetti ref={confettiRef} manualstart />
+
+      {/* Main Content */}
+      <main className="relative z-10 flex w-full max-w-6xl flex-col gap-8 px-4 py-12 sm:px-6 lg:px-8">
+        {/* Logout Button */}
+        <div className="flex justify-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={logout}
+            className="gap-2"
           >
+            <LogOut className="h-4 w-4" />
+            Logout
+          </Button>
+        </div>
+
+        {/* Header */}
+        <div className="flex flex-col items-center gap-4 text-center">
+
+          {/* Cute Kitty Mascot */}
+          <div className="relative h-20 w-20 shrink-0 animate-bounce-subtle">
             <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+              src="/assets/images/kitty.png"
+              alt="Cute kitty"
+              fill
+              className="object-contain drop-shadow-lg"
+              priority
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          </div>
+          <div className="flex items-center gap-3">
+            <Gift className="h-8 w-8 text-primary" />
+            <h1 className="text-4xl font-bold tracking-tight">Hannie&apos;s Wishlist</h1>
+            <Sparkles className="h-6 w-6 text-primary" />
+          </div>
+          {totalCount > 0 && (
+            <p className="text-muted-foreground">
+              {receivedCount} of {totalCount} items received
+            </p>
+          )}
         </div>
+
+        {/* URL Input */}
+        <div className="w-full">
+          <UrlInput
+            onAdd={handleAddItem}
+            isLoading={isLoading}
+            categories={categories}
+            onCreateCategory={handleCreateCategory}
+          />
+        </div>
+
+        {/* Wishlist Items */}
+        {items.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-muted p-12 text-center">
+            <div className="relative h-24 w-24">
+              <Image
+                src="/assets/images/kitty.png"
+                alt="Cute kitty"
+                fill
+                className="object-contain opacity-50"
+              />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold">Your wishlist is empty</h2>
+              <p className="mt-2 text-muted-foreground">
+                Paste a URL above to start adding items to your wishlist!
+              </p>
+            </div>
+          </div>
+        ) : (
+          <WishlistItemList
+            items={items}
+            categories={categories}
+            onToggleReceived={handleToggleReceived}
+            onDelete={handleDelete}
+            onChangeCategory={handleChangeCategory}
+            onCreateCategory={handleCreateCategory}
+            onRenameCategory={handleRenameCategory}
+            onUpdateItem={handleUpdateItem}
+          />
+        )}
       </main>
     </div>
-  );
+  )
 }
