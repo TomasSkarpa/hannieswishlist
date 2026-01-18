@@ -21,7 +21,9 @@ export async function POST(request: NextRequest) {
     });
 
     // Check if the preview content is unhelpful
-    const title = preview.title?.toLowerCase().trim() || '';
+    // Handle different return types from link-preview-js
+    const previewObj = preview as any;
+    const title = (previewObj.title || previewObj.siteName || '').toLowerCase().trim();
     const unhelpfulTitles = [
       'just a moment',
       'checking security',
@@ -34,7 +36,7 @@ export async function POST(request: NextRequest) {
     const isUnhelpful = unhelpfulTitles.some(bad => title.includes(bad)) || title.length < 3;
 
     return NextResponse.json({
-      ...preview,
+      ...previewObj,
       _unhelpful: isUnhelpful, // Flag to indicate preview may be incomplete
     });
   } catch (error) {
