@@ -9,7 +9,7 @@ import { type WishlistItem } from "@/components/wishlist-item-card"
 import { LoginForm } from "@/components/login-form"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
-import { syncItemsToKV, syncCategoriesToKV } from "@/lib/sync"
+import { syncItemsToKV, syncCategoriesToKV, mergeItems, mergeCategories } from "@/lib/sync"
 import confetti from "canvas-confetti"
 import { cn } from "@/lib/utils"
 
@@ -22,12 +22,10 @@ export default function Home() {
   const itemsSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const categoriesSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  if (!isAuthenticated) {
-    return <LoginForm />
-  }
-
   // Load items and categories from localStorage and sync with Redis on mount
   useEffect(() => {
+    if (!isAuthenticated) return
+    
     const loadData = async () => {
       // Load from localStorage first (fast)
       const savedItems = localStorage.getItem("wishlist-items")
@@ -72,9 +70,9 @@ export default function Home() {
           ? (await kvCategoriesResponse.json()).categories || ["Uncategorized"]
           : ["Uncategorized"]
 
-        // Merge: prefer local if exists, otherwise use Redis
-        const mergedItems = localItems.length > 0 ? localItems : kvItems
-        const mergedCategories = localCategories.length > 1 ? localCategories : kvCategories
+        // Merge: combine local and Redis items (local takes precedence for conflicts)
+        const mergedItems = mergeItems(localItems, kvItems)
+        const mergedCategories = mergeCategories(localCategories, kvCategories)
 
         // Update state with merged data
         setItems(mergedItems)
@@ -99,10 +97,12 @@ export default function Home() {
     }
 
     loadData()
-  }, [])
+  }, [isAuthenticated])
 
   // Debounced sync to Redis whenever items change
   useEffect(() => {
+    if (!isAuthenticated) return
+    
     // Save to localStorage immediately
     localStorage.setItem("wishlist-items", JSON.stringify(items))
 
@@ -125,6 +125,8 @@ export default function Home() {
 
   // Debounced sync to Redis whenever categories change
   useEffect(() => {
+    if (!isAuthenticated) return
+    
     // Save to localStorage immediately
     localStorage.setItem("wishlist-categories", JSON.stringify(categories))
 
@@ -143,7 +145,11 @@ export default function Home() {
         clearTimeout(categoriesSyncTimeoutRef.current)
       }
     }
-  }, [categories])
+  }, [categories, isAuthenticated])
+
+  if (!isAuthenticated) {
+    return <LoginForm />
+  }
 
   const handleAddItem = async (url: string, category: string) => {
     setIsLoading(true)
