@@ -100,7 +100,7 @@ export function EditableCategoryHeader({
                 size="icon-sm"
                 variant="ghost"
                 onClick={() => setIsEditingIcon(true)}
-                className="absolute -top-1 -right-1 h-4 w-4 opacity-0 transition-opacity group-hover/icon:opacity-100 bg-background border border-border rounded-full p-0"
+                className="absolute -top-1 -right-1 h-4 w-4 opacity-100 md:opacity-0 transition-opacity md:group-hover/icon:opacity-100 bg-background border border-border rounded-full p-0"
                 aria-label="Change icon"
               >
                 <Pencil className="h-2 w-2" />
@@ -146,7 +146,7 @@ export function EditableCategoryHeader({
                 size="icon-sm"
                 variant="ghost"
                 onClick={() => setIsEditing(true)}
-                className="h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100"
+                className="h-6 w-6 opacity-100 md:opacity-0 transition-opacity md:group-hover:opacity-100"
                 aria-label="Rename category"
               >
                 <Pencil className="h-3 w-3 text-muted-foreground" />
@@ -164,7 +164,7 @@ export function EditableCategoryHeader({
           size="icon-sm"
           variant="ghost"
           onClick={() => onDelete(category)}
-          className="h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100 text-destructive hover:text-destructive"
+          className="h-6 w-6 opacity-100 md:opacity-0 transition-opacity md:group-hover:opacity-100 text-destructive hover:text-destructive"
           aria-label="Delete category"
         >
           <Trash2 className="h-3 w-3" />

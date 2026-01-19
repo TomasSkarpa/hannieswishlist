@@ -39,7 +39,7 @@ export function UrlInput({ onAdd, isLoading, categories, onCreateCategory, categ
           disabled={isLoading}
           className="flex-1"
         />
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="hidden md:flex items-center gap-2 shrink-0">
           <span className="text-sm text-muted-foreground whitespace-nowrap">Category:</span>
           <InlineCategorySelector
             categories={categories}
