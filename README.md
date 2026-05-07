@@ -2,8 +2,6 @@
 
 A beautiful, dreamy wishlist app built for my gf where she can save all her favorite things! ✨
 
-Built with love, pink hearts, and sparkles ✨💕
-
 ## 🌺 Getting Started
 
 Let's get this beautiful app blooming! 🌷
